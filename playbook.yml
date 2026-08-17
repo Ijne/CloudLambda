@@ -24,6 +24,8 @@
           - ca-certificates
           - openjdk-21-jre-headless
           - python3-psycopg2
+          - python3
+          - golang-go
         state: present
         update_cache: true
 
@@ -82,7 +84,7 @@
         owner: cf
         state: present
 
-    # --- Kafka (KRaft, без Zookeeper) ---
+    # --- Kafka (KRaft) ---
 
     - name: Check Kafka installed
       stat:
@@ -114,17 +116,19 @@
       register: kafka_uuid
       changed_when: false
 
+    - name: Stop Kafka before reformatting
+      systemd:
+        name: kafka
+        state: stopped
+      ignore_errors: true
+
+    - name: Clean Kafka storage
+      file:
+        path: /tmp/kraft-combined-logs
+        state: absent
+
     - name: Format Kafka storage (KRaft)
-      command: >
-        {{ kafka_dir }}/bin/kafka-storage.sh format
-        --standalone
-        -t {{ kafka_uuid.stdout }}
-        -c {{ kafka_dir }}/config/server.properties
-      register: kafka_format
-      changed_when: "'Formatting' in kafka_format.stdout"
-      failed_when:
-        - kafka_format.rc != 0
-        - "'already formatted' not in kafka_format.stdout"
+      command: "{{ kafka_dir }}/bin/kafka-storage.sh format --standalone -t {{ kafka_uuid.stdout }} -c {{ kafka_dir }}/config/server.properties"
 
     - name: Copy Kafka systemd unit
       copy:
