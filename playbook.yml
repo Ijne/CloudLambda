@@ -23,6 +23,7 @@
           - bash
           - ca-certificates
           - openjdk-21-jre-headless
+          - python3-psycopg2
         state: present
         update_cache: true
 
