@@ -117,6 +117,7 @@
     - name: Format Kafka storage (KRaft)
       command: >
         {{ kafka_dir }}/bin/kafka-storage.sh format
+        --standalone
         -t {{ kafka_uuid.stdout }}
         -c {{ kafka_dir }}/config/server.properties
       register: kafka_format
