@@ -7,10 +7,13 @@
     go_version: "1.22.3"
     go_archive: "go{{ go_version }}.linux-amd64.tar.gz"
     go_url: "https://go.dev/dl/{{ go_archive }}"
+    kafka_version: "3.7.0"
+    kafka_scala: "2.13"
+    kafka_dir: "/opt/kafka"
 
   tasks:
 
-    # --- Зависимости ---
+    # --- Системные пакеты ---
 
     - name: Install system packages
       apt:
@@ -19,10 +22,11 @@
           - git
           - bash
           - ca-certificates
-          - gnupg
-          - lsb-release
+          - openjdk-21-jre-headless
         state: present
         update_cache: true
+
+    # --- Go ---
 
     - name: Check Go installed
       stat:
@@ -48,64 +52,134 @@
         content: 'export PATH=$PATH:/usr/local/go/bin'
         mode: '0644'
 
-    # --- Docker ---
+    # --- PostgreSQL ---
 
-    - name: Create Docker keyring directory
-      file:
-        path: /etc/apt/keyrings
-        state: directory
-        mode: '0755'
-
-    - name: Download Docker GPG key
-      shell: |
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-      args:
-        creates: /etc/apt/keyrings/docker.gpg
-
-    - name: Add Docker repository
-      copy:
-        dest: /etc/apt/sources.list.d/docker.list
-        content: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable\n"
-        mode: '0644'
-
-    - name: Install Docker
+    - name: Install PostgreSQL
       apt:
         name:
-          - docker-ce
-          - docker-ce-cli
-          - containerd.io
-          - docker-compose-plugin
+          - postgresql
+          - postgresql-client
         state: present
-        update_cache: true
 
-    - name: Start Docker
+    - name: Start PostgreSQL
       systemd:
-        name: docker
+        name: postgresql
         state: started
         enabled: true
 
-    # --- Инфраструктура (Kafka + Postgres) ---
-
-    - name: Copy docker-compose.yml
-      copy:
-        src: docker-compose.yml
-        dest: "{{ project_dir }}/docker-compose.yml"
-
-    - name: Start infrastructure
-      community.docker.docker_compose_v2:
-        project_src: "{{ project_dir }}"
+    - name: Create database user
+      become_user: postgres
+      community.postgresql.postgresql_user:
+        name: cf
+        password: cf
         state: present
 
-    - name: Wait for Postgres
+    - name: Create database
+      become_user: postgres
+      community.postgresql.postgresql_db:
+        name: cloudfunctions
+        owner: cf
+        state: present
+
+    # --- Kafka ---
+
+    - name: Check Kafka installed
+      stat:
+        path: "{{ kafka_dir }}"
+      register: kafka_installed
+
+    - name: Download Kafka
+      get_url:
+        url: "https://downloads.apache.org/kafka/{{ kafka_version }}/kafka_{{ kafka_scala }}-{{ kafka_version }}.tgz"
+        dest: "/tmp/kafka.tgz"
+      when: not kafka_installed.stat.exists
+
+    - name: Extract Kafka
+      unarchive:
+        src: /tmp/kafka.tgz
+        dest: /opt
+        remote_src: true
+      when: not kafka_installed.stat.exists
+
+    - name: Symlink Kafka directory
+      file:
+        src: "/opt/kafka_{{ kafka_scala }}-{{ kafka_version }}"
+        dest: "{{ kafka_dir }}"
+        state: link
+      when: not kafka_installed.stat.exists
+
+    - name: Copy Zookeeper systemd unit
+      copy:
+        dest: /etc/systemd/system/zookeeper.service
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=Apache Zookeeper
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=root
+          ExecStart={{ kafka_dir }}/bin/zookeeper-server-start.sh {{ kafka_dir }}/config/zookeeper.properties
+          ExecStop={{ kafka_dir }}/bin/zookeeper-server-stop.sh
+          Restart=on-failure
+          RestartSec=3
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Copy Kafka systemd unit
+      copy:
+        dest: /etc/systemd/system/kafka.service
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=Apache Kafka
+          After=zookeeper.service
+
+          [Service]
+          Type=simple
+          User=root
+          ExecStart={{ kafka_dir }}/bin/kafka-server-start.sh {{ kafka_dir }}/config/server.properties
+          ExecStop={{ kafka_dir }}/bin/kafka-server-stop.sh
+          Restart=on-failure
+          RestartSec=3
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: true
+
+    - name: Start Zookeeper
+      systemd:
+        name: zookeeper
+        state: started
+        enabled: true
+
+    - name: Wait for Zookeeper
       wait_for:
         host: localhost
-        port: 5432
+        port: 2181
         timeout: 60
+
+    - name: Start Kafka
+      systemd:
+        name: kafka
+        state: started
+        enabled: true
 
     - name: Wait for Kafka
       wait_for:
         host: localhost
         port: 9092
+        timeout: 60
+
+    - name: Wait for PostgreSQL
+      wait_for:
+        host: localhost
+        port: 5432
         timeout: 60
 
     # --- Рантаймы ---
