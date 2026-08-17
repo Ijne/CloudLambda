@@ -72,7 +72,23 @@ func copyDir(src, dst string) error {
 		srcPath := filepath.Join(src, entry.Name())
 		dstPath := filepath.Join(dst, entry.Name())
 
-		if entry.IsDir() {
+		info, err := os.Lstat(srcPath)
+		if err != nil {
+			return fmt.Errorf("lstat %s: %w", srcPath, err)
+		}
+
+		if info.Mode()&os.ModeSymlink != 0 {
+			linkTarget, err := os.Readlink(srcPath)
+			if err != nil {
+				return fmt.Errorf("read symlink %s: %w", srcPath, err)
+			}
+			if err := os.Symlink(linkTarget, dstPath); err != nil && !os.IsExist(err) {
+				return fmt.Errorf("create symlink %s: %w", dstPath, err)
+			}
+			continue
+		}
+
+		if info.IsDir() {
 			if err := copyDir(srcPath, dstPath); err != nil {
 				return err
 			}
