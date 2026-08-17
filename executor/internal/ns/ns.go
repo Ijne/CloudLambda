@@ -11,6 +11,7 @@ import (
 
 	"lambda/internal/mount"
 	"lambda/internal/params"
+	"lambda/internal/vars"
 )
 
 func Start(p params.Params) *params.Result {
@@ -124,15 +125,27 @@ func childEntry(p params.Params, stdout, fdCHW, fdPW []int32) *params.Result {
 }
 
 func execInto(p params.Params) {
-	selfPathpath, _ := syscall.BytePtrFromString(p.CodeSource)
-	argv, _ := syscall.SlicePtrFromStrings([]string{""})
+	var args []string
 
-	env := []string{}
-	envp, _ := syscall.SlicePtrFromStrings(env)
+	switch p.EnvType {
+	case vars.PYTHON:
+		args = []string{"/usr/bin/python3", p.CodeSource}
+	case vars.GO:
+		args = []string{p.CodeSource}
+	case vars.JAVA:
+		args = []string{"/usr/bin/java", "-jar", p.CodeSource}
+	default:
+		fmt.Println("unknown env type:", p.EnvType)
+		return
+	}
+
+	binaryPtr, _ := syscall.BytePtrFromString(args[0])
+	argv, _ := syscall.SlicePtrFromStrings(args)
+	envp, _ := syscall.SlicePtrFromStrings([]string{})
 
 	_, _, errno := syscall.Syscall(
 		syscall.SYS_EXECVE,
-		uintptr(unsafe.Pointer(selfPathpath)),
+		uintptr(unsafe.Pointer(binaryPtr)),
 		uintptr(unsafe.Pointer(&argv[0])),
 		uintptr(unsafe.Pointer(&envp[0])),
 	)
