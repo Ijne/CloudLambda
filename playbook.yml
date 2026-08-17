@@ -82,7 +82,7 @@
         owner: cf
         state: present
 
-    # --- Kafka ---
+    # --- Kafka (KRaft, без Zookeeper) ---
 
     - name: Check Kafka installed
       stat:
@@ -91,7 +91,7 @@
 
     - name: Download Kafka
       get_url:
-        url: "https://downloads.apache.org/kafka/{{ kafka_version }}/kafka_{{ kafka_scala }}-{{ kafka_version }}.tgz"
+        url: "https://archive.apache.org/dist/kafka/{{ kafka_version }}/kafka_{{ kafka_scala }}-{{ kafka_version }}.tgz"
         dest: "/tmp/kafka.tgz"
       when: not kafka_installed.stat.exists
 
@@ -109,25 +109,21 @@
         state: link
       when: not kafka_installed.stat.exists
 
-    - name: Copy Zookeeper systemd unit
-      copy:
-        dest: /etc/systemd/system/zookeeper.service
-        mode: '0644'
-        content: |
-          [Unit]
-          Description=Apache Zookeeper
-          After=network.target
+    - name: Generate Kafka cluster UUID
+      command: "{{ kafka_dir }}/bin/kafka-storage.sh random-uuid"
+      register: kafka_uuid
+      changed_when: false
 
-          [Service]
-          Type=simple
-          User=root
-          ExecStart={{ kafka_dir }}/bin/zookeeper-server-start.sh {{ kafka_dir }}/config/zookeeper.properties
-          ExecStop={{ kafka_dir }}/bin/zookeeper-server-stop.sh
-          Restart=on-failure
-          RestartSec=3
-
-          [Install]
-          WantedBy=multi-user.target
+    - name: Format Kafka storage (KRaft)
+      command: >
+        {{ kafka_dir }}/bin/kafka-storage.sh format
+        -t {{ kafka_uuid.stdout }}
+        -c {{ kafka_dir }}/config/kraft/server.properties
+      register: kafka_format
+      changed_when: "'Formatting' in kafka_format.stdout"
+      failed_when:
+        - kafka_format.rc != 0
+        - "'already formatted' not in kafka_format.stdout"
 
     - name: Copy Kafka systemd unit
       copy:
@@ -135,13 +131,13 @@
         mode: '0644'
         content: |
           [Unit]
-          Description=Apache Kafka
-          After=zookeeper.service
+          Description=Apache Kafka (KRaft)
+          After=network.target
 
           [Service]
           Type=simple
           User=root
-          ExecStart={{ kafka_dir }}/bin/kafka-server-start.sh {{ kafka_dir }}/config/server.properties
+          ExecStart={{ kafka_dir }}/bin/kafka-server-start.sh {{ kafka_dir }}/config/kraft/server.properties
           ExecStop={{ kafka_dir }}/bin/kafka-server-stop.sh
           Restart=on-failure
           RestartSec=3
@@ -153,22 +149,10 @@
       systemd:
         daemon_reload: true
 
-    - name: Start Zookeeper
-      systemd:
-        name: zookeeper
-        state: started
-        enabled: true
-
-    - name: Wait for Zookeeper
-      wait_for:
-        host: localhost
-        port: 2181
-        timeout: 60
-
     - name: Start Kafka
       systemd:
         name: kafka
-        state: started
+        state: restarted
         enabled: true
 
     - name: Wait for Kafka
