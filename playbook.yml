@@ -7,7 +7,7 @@
     go_version: "1.22.3"
     go_archive: "go{{ go_version }}.linux-amd64.tar.gz"
     go_url: "https://go.dev/dl/{{ go_archive }}"
-    kafka_version: "3.9.1"
+    kafka_version: "4.3.1"
     kafka_scala: "2.13"
     kafka_dir: "/opt/kafka"
 
@@ -129,6 +129,11 @@
 
     - name: Format Kafka storage (KRaft)
       command: "{{ kafka_dir }}/bin/kafka-storage.sh format --standalone -t {{ kafka_uuid.stdout }} -c {{ kafka_dir }}/config/server.properties"
+      register: kafka_format
+      changed_when: "'Formatting' in kafka_format.stdout"
+      failed_when:
+        - kafka_format.rc != 0
+        - "'already formatted' not in kafka_format.stdout"
 
     - name: Copy Kafka systemd unit
       copy:

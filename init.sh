@@ -4,7 +4,7 @@ set -e
 
 ENV_ROOT="${ENV_ROOT:-/var/cloudfunctions/runtimes}"
 ALPINE_VERSION="3.19"
-ALPINE_URL="https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/releases/x86_64/alpine-minirootfs-${ALPINE_VERSION}.0-x86_64.tar.gz"
+ALPINE_URL="https://mirror.yandex.ru/mirrors/alpine/v${ALPINE_VERSION}/releases/x86_64/alpine-minirootfs-${ALPINE_VERSION}.0-x86_64.tar.gz"
 ALPINE_TAR="/tmp/alpine-minirootfs.tar.gz"
 
 log() {
@@ -32,6 +32,8 @@ setup_base() {
     log "Setting up base for: $name"
     mkdir -p "$dir"
     tar -xf "$ALPINE_TAR" -C "$dir"
+    echo "https://mirror.yandex.ru/mirrors/alpine/v${ALPINE_VERSION}/main" > "$dir/etc/apk/repositories"
+    echo "https://mirror.yandex.ru/mirrors/alpine/v${ALPINE_VERSION}/community" >> "$dir/etc/apk/repositories"
     echo "nameserver 1.1.1.1" > "$dir/etc/resolv.conf"
 }
 

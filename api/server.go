@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"lambda/internal/db"
-	"lambda/internal/vars"
+	"api/internal/db"
+	"api/internal/vars"
 )
 
 type server struct {
@@ -68,7 +68,7 @@ func (s *server) handleDeploy(w http.ResponseWriter, r *http.Request) {
 
 	runtime := vars.EnvType(r.FormValue("runtime"))
 	switch runtime {
-	case vars.EnvTypeGo, vars.EnvTypePython, vars.EnvTypeJava:
+	case vars.GO, vars.PYTHON, vars.JAVA:
 	default:
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("unsupported runtime: %s", runtime))
 		return
