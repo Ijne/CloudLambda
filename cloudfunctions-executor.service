@@ -1,0 +1,23 @@
+[Unit]
+Description=CloudFunction Executor
+After=network.target docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory={{ project_dir }}/executor
+ExecStart={{ project_dir }}/executor/bin/executor
+Restart=on-failure
+RestartSec=3
+
+Environment=KAFKA_BROKER=localhost:9092
+Environment=WORKER_POOL_SIZE=10
+Environment=PYTHON_ENV_SRC=/var/cloudfunctions/runtimes/python_env
+Environment=GO_ENV_SRC=/var/cloudfunctions/runtimes/go_env
+Environment=JAVA_ENV_SRC=/var/cloudfunctions/runtimes/java_env
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

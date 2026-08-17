@@ -1,0 +1,25 @@
+[Unit]
+Description=CloudFunction API
+After=network.target docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory={{ project_dir }}/api
+ExecStart={{ project_dir }}/api/bin/api
+Restart=on-failure
+RestartSec=3
+
+Environment=ADDR=:8080
+Environment=KAFKA_BROKER=localhost:9092
+Environment=DATABASE_URL=postgres://cf:cf@localhost:5432/cloudfunctions
+Environment=FUNCTIONS_ROOT=/var/cloudfunctions/functions
+Environment=PYTHON_ENV_SRC=/var/cloudfunctions/runtimes/python_env
+Environment=GO_ENV_SRC=/var/cloudfunctions/runtimes/go_env
+Environment=JAVA_ENV_SRC=/var/cloudfunctions/runtimes/java_env
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

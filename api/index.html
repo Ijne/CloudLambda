@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CloudFunction</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0f0f0f;
+    --surface:  #1a1a1a;
+    --border:   #2a2a2a;
+    --text:     #e2e2e2;
+    --muted:    #666;
+    --accent:   #6ee7b7;
+    --error:    #ef4444;
+    --warning:  #fbbf24;
+  }
+
+  body {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0 0 64px;
+  }
+
+  /* Header */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  header .logo {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  header .sep { color: var(--border); }
+  header .subtitle { font-size: 12px; color: var(--muted); }
+
+  /* Layout */
+  main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 32px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+  }
+
+  /* Section */
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  /* Deploy form */
+  .deploy-form {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .field label {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+  .field input, .field select {
+    font-family: inherit;
+    font-size: 13px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .field input:focus, .field select:focus {
+    border-color: var(--accent);
+  }
+  .field select option { background: var(--bg); }
+
+  .file-drop {
+    border: 1px dashed var(--border);
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    position: relative;
+  }
+  .file-drop:hover, .file-drop.dragover {
+    border-color: var(--accent);
+    background: rgba(110,231,183,0.04);
+  }
+  .file-drop input[type=file] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+  .file-drop .drop-label { font-size: 12px; color: var(--muted); pointer-events: none; }
+  .file-drop .drop-label span { color: var(--accent); }
+  .file-name { font-size: 12px; color: var(--accent); margin-top: 4px; }
+
+  /* Buttons */
+  .btn {
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #0f0f0f; }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .btn-ghost:hover { border-color: var(--text); color: var(--text); opacity: 1; }
+  .btn-danger {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--error);
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+  .btn-danger:hover { border-color: var(--error); opacity: 1; }
+  .btn-invoke {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+  .btn-invoke:hover { background: rgba(110,231,183,0.08); opacity: 1; }
+
+  /* Functions list */
+  .fn-list { display: flex; flex-direction: column; gap: 12px; }
+
+  .fn-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+
+  .fn-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .fn-header:hover { background: rgba(255,255,255,0.02); }
+
+  .fn-runtime {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--bg);
+    background: var(--accent);
+    padding: 2px 6px;
+    flex-shrink: 0;
+  }
+  .fn-runtime.go     { background: #60a5fa; }
+  .fn-runtime.python { background: #6ee7b7; }
+  .fn-runtime.java   { background: #fbbf24; color: #1a1a1a; }
+
+  .fn-name { font-size: 14px; font-weight: 500; flex: 1; }
+  .fn-id   { font-size: 11px; color: var(--muted); }
+
+  .fn-actions { display: flex; gap: 4px; align-items: center; }
+
+  /* Function body — invoke panel */
+  .fn-body {
+    border-top: 1px solid var(--border);
+    padding: 16px 18px;
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .fn-body.open { display: flex; }
+
+  .fn-meta {
+    display: flex;
+    gap: 24px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .fn-meta span b { color: var(--text); }
+
+  /* Terminal output */
+  .terminal {
+    background: #000;
+    border: 1px solid var(--border);
+    padding: 14px 16px;
+    font-size: 12px;
+    line-height: 1.6;
+    min-height: 60px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .terminal .prompt { color: var(--accent); }
+  .terminal .out    { color: var(--text); }
+  .terminal .meta   { color: var(--muted); }
+  .terminal .err    { color: var(--error); }
+  .terminal .cursor {
+    display: inline-block;
+    width: 8px;
+    height: 13px;
+    background: var(--accent);
+    animation: blink 1s step-end infinite;
+    vertical-align: text-bottom;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Empty state */
+  .empty {
+    text-align: center;
+    padding: 48px 0;
+    color: var(--muted);
+    font-size: 12px;
+    border: 1px dashed var(--border);
+  }
+  .empty .empty-title { font-size: 14px; color: var(--text); margin-bottom: 8px; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 12px 18px;
+    font-size: 12px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    z-index: 100;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.ok  { border-color: var(--accent); color: var(--accent); }
+  .toast.err { border-color: var(--error);  color: var(--error); }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">CloudFunction</span>
+  <span class="sep">/</span>
+  <span class="subtitle">execution engine</span>
+</header>
+
+<main>
+
+  <!-- Deploy -->
+  <section>
+    <div class="section-title">Deploy function</div>
+    <div class="deploy-form">
+      <div class="form-row">
+        <div class="field">
+          <label>Name</label>
+          <input id="fn-name" type="text" placeholder="my-function">
+        </div>
+        <div class="field">
+          <label>Runtime</label>
+          <select id="fn-runtime">
+            <option value="python">Python</option>
+            <option value="go">Go</option>
+            <option value="java">Java</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Memory limit (bytes)</label>
+          <input id="fn-memory" type="number" value="536870912">
+        </div>
+        <div class="field">
+          <label>CPU quota (µs/100ms)</label>
+          <input id="fn-cpu" type="number" value="50000">
+        </div>
+      </div>
+      <div class="field">
+        <label>Timeout (seconds)</label>
+        <input id="fn-timeout" type="number" value="10" style="max-width:200px">
+      </div>
+      <div class="file-drop" id="file-drop">
+        <input type="file" id="fn-file" accept=".py,.go,.jar,.sh">
+        <div class="drop-label">Drop file here or <span>browse</span></div>
+        <div class="file-name" id="file-name"></div>
+      </div>
+      <div>
+        <button class="btn btn-primary" id="deploy-btn" onclick="deploy()">Deploy</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Functions list -->
+  <section>
+    <div class="section-title">Functions</div>
+    <div id="fn-list" class="fn-list">
+      <div class="empty">
+        <div class="empty-title">No functions deployed</div>
+        Deploy your first function above
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const API = '';
+
+  // File drop
+  const fileDrop = document.getElementById('file-drop');
+  const fileInput = document.getElementById('fn-file');
+  const fileNameEl = document.getElementById('file-name');
+
+  fileInput.addEventListener('change', () => {
+    fileNameEl.textContent = fileInput.files[0]?.name || '';
+  });
+  fileDrop.addEventListener('dragover', e => { e.preventDefault(); fileDrop.classList.add('dragover'); });
+  fileDrop.addEventListener('dragleave', () => fileDrop.classList.remove('dragover'));
+  fileDrop.addEventListener('drop', e => {
+    e.preventDefault();
+    fileDrop.classList.remove('dragover');
+    fileInput.files = e.dataTransfer.files;
+    fileNameEl.textContent = fileInput.files[0]?.name || '';
+  });
+
+  // Toast
+  function toast(msg, type = 'ok') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = `toast show ${type}`;
+    setTimeout(() => el.classList.remove('show'), 3000);
+  }
+
+  // Load functions
+  async function loadFunctions() {
+    try {
+      const res = await fetch(`${API}/functions`);
+      const fns = await res.json();
+      renderList(fns);
+    } catch (e) {
+      renderList([]);
+    }
+  }
+
+  function renderList(fns) {
+    const el = document.getElementById('fn-list');
+    if (!fns || fns.length === 0) {
+      el.innerHTML = `<div class="empty"><div class="empty-title">No functions deployed</div>Deploy your first function above</div>`;
+      return;
+    }
+    el.innerHTML = fns.map(fn => fnCard(fn)).join('');
+  }
+
+  function fnCard(fn) {
+    const date = new Date(fn.created_at).toLocaleString();
+    return `
+      <div class="fn-card" id="card-${fn.id}">
+        <div class="fn-header" onclick="toggleCard('${fn.id}')">
+          <span class="fn-runtime ${fn.runtime}">${fn.runtime}</span>
+          <span class="fn-name">${fn.name}</span>
+          <span class="fn-id">${fn.id}</span>
+          <div class="fn-actions" onclick="event.stopPropagation()">
+            <button class="btn btn-invoke" onclick="invoke('${fn.id}')">▶ Run</button>
+            <button class="btn btn-danger" onclick="deleteFn('${fn.id}')">✕</button>
+          </div>
+        </div>
+        <div class="fn-body" id="body-${fn.id}">
+          <div class="fn-meta">
+            <span>memory <b>${(fn.memory_limit / 1024 / 1024).toFixed(0)} MB</b></span>
+            <span>cpu <b>${fn.cpu_quota} µs</b></span>
+            <span>timeout <b>${fn.timeout_sec}s</b></span>
+            <span>deployed <b>${date}</b></span>
+          </div>
+          <div class="terminal" id="term-${fn.id}"><span class="prompt">$</span> <span class="meta">ready</span> <span class="cursor"></span></div>
+        </div>
+      </div>`;
+  }
+
+  function toggleCard(id) {
+    const body = document.getElementById(`body-${id}`);
+    body.classList.toggle('open');
+  }
+
+  // Deploy
+  async function deploy() {
+    const name    = document.getElementById('fn-name').value.trim();
+    const runtime = document.getElementById('fn-runtime').value;
+    const memory  = document.getElementById('fn-memory').value;
+    const cpu     = document.getElementById('fn-cpu').value;
+    const timeout = document.getElementById('fn-timeout').value;
+    const file    = fileInput.files[0];
+
+    if (!name)    { toast('Name is required', 'err'); return; }
+    if (!file)    { toast('File is required', 'err'); return; }
+
+    const btn = document.getElementById('deploy-btn');
+    btn.disabled = true;
+    btn.textContent = 'Deploying...';
+
+    const form = new FormData();
+    form.append('name', name);
+    form.append('runtime', runtime);
+    form.append('memory_limit', memory);
+    form.append('cpu_quota', cpu);
+    form.append('timeout_sec', timeout);
+    form.append('file', file);
+
+    try {
+      const res = await fetch(`${API}/functions`, { method: 'POST', body: form });
+      if (!res.ok) {
+        const err = await res.json();
+        toast(err.error || 'Deploy failed', 'err');
+        return;
+      }
+      toast('Deployed');
+      document.getElementById('fn-name').value = '';
+      fileInput.value = '';
+      fileNameEl.textContent = '';
+      await loadFunctions();
+    } catch (e) {
+      toast('Network error', 'err');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Deploy';
+    }
+  }
+
+  // Invoke
+  async function invoke(id) {
+    const term = document.getElementById(`term-${id}`);
+    const body = document.getElementById(`body-${id}`);
+    body.classList.add('open');
+
+    term.innerHTML = `<span class="prompt">$</span> <span class="meta">running...</span> <span class="cursor"></span>`;
+
+    try {
+      const res = await fetch(`${API}/functions/${id}/invoke`, { method: 'POST' });
+      const data = await res.json();
+
+      if (!res.ok) {
+        term.innerHTML = `<span class="prompt">$</span> <span class="err">${data.error || 'Execution failed'}</span>`;
+        return;
+      }
+
+      const exitColor = data.exit_code === 0 ? 'prompt' : 'err';
+      const timedOut = data.timed_out ? `<span class="err"> [timed out]</span>` : '';
+      const stdout = data.stdout
+        ? `\n<span class="out">${escapeHtml(data.stdout)}</span>`
+        : `\n<span class="meta">(no output)</span>`;
+
+      term.innerHTML =
+        `<span class="prompt">$</span> <span class="${exitColor}">exit ${data.exit_code}</span>${timedOut}${stdout}`;
+    } catch (e) {
+      term.innerHTML = `<span class="prompt">$</span> <span class="err">network error</span>`;
+    }
+  }
+
+  // Delete
+  async function deleteFn(id) {
+    try {
+      const res = await fetch(`${API}/functions/${id}`, { method: 'DELETE' });
+      if (res.ok || res.status === 204) {
+        toast('Deleted');
+        await loadFunctions();
+      } else {
+        toast('Delete failed', 'err');
+      }
+    } catch (e) {
+      toast('Network error', 'err');
+    }
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  loadFunctions();
+</script>
+</body>
+</html>

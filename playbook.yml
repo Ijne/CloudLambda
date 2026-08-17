@@ -1,0 +1,173 @@
+---
+- name: Deploy CloudFunction
+  hosts: cloudfunctions
+  become: true
+
+  vars:
+    go_version: "1.22.3"
+    go_archive: "go{{ go_version }}.linux-amd64.tar.gz"
+    go_url: "https://go.dev/dl/{{ go_archive }}"
+
+  tasks:
+
+    # --- Зависимости ---
+
+    - name: Install system packages
+      apt:
+        name:
+          - curl
+          - git
+          - bash
+          - ca-certificates
+          - gnupg
+          - lsb-release
+        state: present
+        update_cache: true
+
+    - name: Check Go installed
+      stat:
+        path: /usr/local/go/bin/go
+      register: go_bin
+
+    - name: Download Go
+      get_url:
+        url: "{{ go_url }}"
+        dest: "/tmp/{{ go_archive }}"
+      when: not go_bin.stat.exists
+
+    - name: Install Go
+      unarchive:
+        src: "/tmp/{{ go_archive }}"
+        dest: /usr/local
+        remote_src: true
+      when: not go_bin.stat.exists
+
+    - name: Add Go to PATH
+      copy:
+        dest: /etc/profile.d/go.sh
+        content: 'export PATH=$PATH:/usr/local/go/bin'
+        mode: '0644'
+
+    # --- Docker ---
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+    - name: Start Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: true
+
+    # --- Инфраструктура (Kafka + Postgres) ---
+
+    - name: Copy docker-compose.yml
+      copy:
+        src: docker-compose.yml
+        dest: "{{ project_dir }}/docker-compose.yml"
+
+    - name: Start infrastructure
+      community.docker.docker_compose_v2:
+        project_src: "{{ project_dir }}"
+        state: present
+
+    - name: Wait for Postgres
+      wait_for:
+        host: localhost
+        port: 5432
+        timeout: 60
+
+    - name: Wait for Kafka
+      wait_for:
+        host: localhost
+        port: 9092
+        timeout: 60
+
+    # --- Рантаймы ---
+
+    - name: Create runtimes directory
+      file:
+        path: /var/cloudfunctions/runtimes
+        state: directory
+        mode: '0755'
+
+    - name: Create functions directory
+      file:
+        path: /var/cloudfunctions/functions
+        state: directory
+        mode: '0755'
+
+    - name: Run init.sh to prepare runtimes
+      command: bash {{ project_dir }}/init.sh
+      environment:
+        ENV_ROOT: /var/cloudfunctions/runtimes
+
+    # --- Сборка ---
+
+    - name: Create bin directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ project_dir }}/api/bin"
+        - "{{ project_dir }}/executor/bin"
+
+    - name: Build API binary
+      command: /usr/local/go/bin/go build -o {{ project_dir }}/api/bin/api .
+      args:
+        chdir: "{{ project_dir }}/api"
+
+    - name: Build Executor binary
+      command: /usr/local/go/bin/go build -o {{ project_dir }}/executor/bin/executor ./cmd
+      args:
+        chdir: "{{ project_dir }}/executor"
+
+    # --- Systemd сервисы ---
+
+    - name: Copy API service
+      template:
+        src: cloudfunctions-api.service
+        dest: /etc/systemd/system/cloudfunctions-api.service
+
+    - name: Copy Executor service
+      template:
+        src: cloudfunctions-executor.service
+        dest: /etc/systemd/system/cloudfunctions-executor.service
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: true
+
+    - name: Enable and start API
+      systemd:
+        name: cloudfunctions-api
+        state: restarted
+        enabled: true
+
+    - name: Enable and start Executor
+      systemd:
+        name: cloudfunctions-executor
+        state: restarted
+        enabled: true
+
+    - name: Done
+      debug:
+        msg: "CloudFunction is running at http://localhost:8080"
