@@ -118,7 +118,7 @@
       command: >
         {{ kafka_dir }}/bin/kafka-storage.sh format
         -t {{ kafka_uuid.stdout }}
-        -c {{ kafka_dir }}/config/kraft/server.properties
+        -c {{ kafka_dir }}/config/server.properties
       register: kafka_format
       changed_when: "'Formatting' in kafka_format.stdout"
       failed_when:
@@ -137,7 +137,7 @@
           [Service]
           Type=simple
           User=root
-          ExecStart={{ kafka_dir }}/bin/kafka-server-start.sh {{ kafka_dir }}/config/kraft/server.properties
+          ExecStart={{ kafka_dir }}/bin/kafka-server-start.sh {{ kafka_dir }}/config/server.properties
           ExecStop={{ kafka_dir }}/bin/kafka-server-stop.sh
           Restart=on-failure
           RestartSec=3
