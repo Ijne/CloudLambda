@@ -21,7 +21,6 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// PostgreSQL
 	pool, err := db.Connect(ctx)
 	if err != nil {
 		log.Fatalf("db connect: %v", err)
@@ -34,7 +33,6 @@ func main() {
 
 	repo := db.NewFunctionRepo(pool)
 
-	// Kafka
 	broker := os.Getenv("KAFKA_BROKER")
 	if broker == "" {
 		broker = "localhost:9092"
@@ -45,7 +43,6 @@ func main() {
 
 	go kafka.readResults(ctx)
 
-	// HTTP
 	addr := os.Getenv("ADDR")
 	if addr == "" {
 		addr = ":8080"

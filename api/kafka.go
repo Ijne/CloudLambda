@@ -9,7 +9,6 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-// TaskResult — структура результата от worker'а, должна совпадать с worker/main.go
 type TaskResult struct {
 	JobID    string `json:"job_id"`
 	ExitCode int    `json:"exit_code"`
@@ -17,7 +16,6 @@ type TaskResult struct {
 	Stdout   string `json:"stdout"`
 }
 
-// waitMap — map ожидающих результата handlers, каждый ждёт свой job_id
 type waitMap struct {
 	mu      sync.Mutex
 	waiters map[string]chan TaskResult
@@ -29,7 +27,6 @@ func newWaitMap() *waitMap {
 	}
 }
 
-// register создаёт канал для job_id, handler будет читать из него
 func (w *waitMap) register(jobID string) chan TaskResult {
 	ch := make(chan TaskResult, 1)
 	w.mu.Lock()
@@ -38,7 +35,6 @@ func (w *waitMap) register(jobID string) chan TaskResult {
 	return ch
 }
 
-// deliver отправляет результат в нужный канал и удаляет его из map
 func (w *waitMap) deliver(jobID string, result TaskResult) {
 	w.mu.Lock()
 	ch, ok := w.waiters[jobID]
@@ -52,7 +48,6 @@ func (w *waitMap) deliver(jobID string, result TaskResult) {
 	}
 }
 
-// unregister удаляет канал из map (если handler отменился по таймауту)
 func (w *waitMap) unregister(jobID string) {
 	w.mu.Lock()
 	delete(w.waiters, jobID)
@@ -89,7 +84,6 @@ func (k *kafkaClient) close() {
 	k.reader.Close()
 }
 
-// publish пишет задачу в topic invocations
 func (k *kafkaClient) publish(ctx context.Context, jobID string, payload []byte) error {
 	return k.writer.WriteMessages(ctx, kafka.Message{
 		Key:   []byte(jobID),
@@ -97,8 +91,6 @@ func (k *kafkaClient) publish(ctx context.Context, jobID string, payload []byte)
 	})
 }
 
-// readResults читает results topic в фоне и доставляет результаты ожидающим handlers
-// запускается один раз при старте как горутина
 func (k *kafkaClient) readResults(ctx context.Context) {
 	for {
 		msg, err := k.reader.FetchMessage(ctx)

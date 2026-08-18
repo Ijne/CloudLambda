@@ -53,7 +53,6 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
 
-// POST /functions
 func (s *server) handleDeploy(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid multipart form")
@@ -125,7 +124,6 @@ func (s *server) handleDeploy(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, fn)
 }
 
-// GET /functions
 func (s *server) handleList(w http.ResponseWriter, r *http.Request) {
 	fns, err := s.repo.List(r.Context())
 	if err != nil {
@@ -135,7 +133,6 @@ func (s *server) handleList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, fns)
 }
 
-// GET /functions/{id}
 func (s *server) handleGet(w http.ResponseWriter, r *http.Request) {
 	fn, err := s.repo.Get(r.Context(), r.PathValue("id"))
 	if errors.Is(err, db.ErrNotFound) {
@@ -149,7 +146,6 @@ func (s *server) handleGet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, fn)
 }
 
-// DELETE /functions/{id}
 func (s *server) handleDelete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	fn, err := s.repo.Get(r.Context(), id)
@@ -171,7 +167,6 @@ func (s *server) handleDelete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// POST /functions/{id}/invoke
 func (s *server) handleInvoke(w http.ResponseWriter, r *http.Request) {
 	fn, err := s.repo.Get(r.Context(), r.PathValue("id"))
 	if errors.Is(err, db.ErrNotFound) {
@@ -199,7 +194,6 @@ func (s *server) handleInvoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Регистрируем канал до отправки в Kafka — чтобы не пропустить быстрый ответ
 	ch := s.kafka.waitMap.register(jobID)
 	defer s.kafka.waitMap.unregister(jobID)
 
@@ -208,7 +202,6 @@ func (s *server) handleInvoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Ждём результата с таймаутом чуть больше чем timeout функции
 	timeout := time.Duration(fn.TimeoutSec+5) * time.Second
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
